@@ -137,7 +137,7 @@ based of the sheets that are available on cheat.sh."
   "Major mode for viewing results from cheat-sh.
 Commands:
 \\{cheat-sh-mode-map}"
-  :syntax-table nil
+  :abbrev-table nil
   (setq font-lock-defaults (list cheat-sh-font-lock-keywords)))
 
 ;; used by `with-temp-buffer-window'
