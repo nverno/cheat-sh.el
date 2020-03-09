@@ -1,11 +1,11 @@
 ;;; cheat-sh.el --- Interact with cheat.sh  -*- lexical-binding: t -*-
-;; Copyright 2017 by Dave Pearson <davep@davep.org>
+;; Copyright 2017-2019 by Dave Pearson <davep@davep.org>
 
 ;; Author: Dave Pearson <davep@davep.org>
-;; Version: 1.7
+;; Version: 1.8
 ;; Keywords: docs, help
 ;; URL: https://github.com/davep/cheat-sh.el
-;; Package-Requires: ((emacs "24"))
+;; Package-Requires: ((emacs "25.1"))
 
 ;; This program is free software: you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by the
@@ -49,13 +49,33 @@
   :group 'cheat-sh)
 
 (defcustom cheat-sh-topic-mode-map
-  '((c++-mode        . "cpp")
-    (emacs-lisp-mode . "elisp")
-    (tuareg-mode     . "ocaml")
-    (sh-mode         . "bash"))
-  "Maps emacs major modes to cheat.sh topic names."
-  :type '(repeat (cons (symbol :tag "Major mode"))
-                 (string :tag "cheat.sh topic"))
+  '((awk-mode              . "awk")
+    (c++-mode              . "cpp")
+    (c-mode                . "c")
+    (clojure-mode          . "clojure")
+    (clojurescript-mode    . "clojure")
+    (dockerfile-mode       . "docker")
+    (emacs-lisp-mode       . "elisp")
+    (fish-mode             . "fish")
+    (go-mode               . "go")
+    (haskell-mode          . "haskell")
+    (hy-mode               . "hy")
+    (java-mode             . "java")
+    (js-jsx-mode           . "javascript")
+    (js-mode               . "javascript")
+    (lisp-interaction-mode . "elisp")
+    (lisp-mode             . "lisp")
+    (objc-mode             . "objectivec")
+    (pike-mode             . "pike")
+    (powershell-mode       . "powershell")
+    (python-mode           . "python")
+    (rust-mode             . "rust")
+    (sh-mode               . "bash")
+    (tuareg-mode           . "ocaml"))
+  "Map of Emacs major mode names to cheat.sh topic names."
+  :type '(repeat (cons
+                  (symbol :tag "Major mode")
+                  (string :tag "cheat.sh topic")))
   :group 'cheat-sh)
 
 (defconst cheat-sh-url "http://cheat.sh/%s?T"
@@ -72,10 +92,14 @@ agent (see https://goo.gl/8gh95X for this) to decide if it should
 deliver plain text rather than HTML. cheat-sh.el requires plain
 text.")
 
+(defconst cheat-sh-query-separator "+"
+  "Separator used by cheat.sh to concatenate parameters.")
+
 (defun cheat-sh-get (thing)
   "Get THING from cheat.sh."
   (let* ((url-request-extra-headers `(("User-Agent" . ,cheat-sh-user-agent)))
-         (buffer (url-retrieve-synchronously (format cheat-sh-url (url-hexify-string thing)) t t)))
+         (buffer (url-retrieve-synchronously
+                  (format cheat-sh-url (url-hexify-string thing)) t t)))
     (when buffer
       (unwind-protect
           (with-current-buffer buffer
@@ -97,7 +121,8 @@ text.")
 The list is cached in memory, and is considered \"stale\" and is
 refreshed after `cheat-sh-list-timeout' seconds."
   (when (and cheat-sh-sheet-list-acquired
-             (> (- (time-to-seconds) cheat-sh-sheet-list-acquired) cheat-sh-list-timeout))
+             (> (- (time-to-seconds) cheat-sh-sheet-list-acquired)
+                cheat-sh-list-timeout))
     (setq cheat-sh-sheet-list nil))
   (or cheat-sh-sheet-list
       (let ((list (cheat-sh-get ":list")))
@@ -110,18 +135,11 @@ refreshed after `cheat-sh-list-timeout' seconds."
 
 This function is used by some `interactive' functions in
 cheat-sh.el to get the item to look up. It provides completion
-based of the sheets that are available on cheat.sh."
-  (completing-read prompt (cheat-sh-sheet-list-cache) nil nil initial))
+based of the sheets that are available on cheat.sh.
 
-(defvar-local cheat-sh--topic ())
-(defun cheat-sh-guess-topic ()
-  "Attempt to guess topic to search."
-  (or cheat-sh--topic
-      (setq cheat-sh--topic
-            (or (alist-get major-mode cheat-sh-topic-mode-map)
-                (let ((s (symbol-name major-mode)))
-                  (and (string-match "^\\([^-]+\\)" s)
-                       (match-string 1 s)))))))
+If a value is passed for INITIAL it is used as the initial
+input."
+  (completing-read prompt (cheat-sh-sheet-list-cache) nil nil initial))
 
 ;;; Major mode
 
@@ -140,10 +158,21 @@ Commands:
   :abbrev-table nil
   (setq font-lock-defaults (list cheat-sh-font-lock-keywords)))
 
-;; used by `with-temp-buffer-window'
 (defun cheat-sh-mode-setup ()
+  "Set up the cheat mode for the current buffer."
   (cheat-sh-mode)
   (setq buffer-read-only nil))
+
+(defvar-local cheat-sh--topic () "Cache local topic guess.")
+(defun cheat-sh-guess-topic (&optional reset)
+  "Attempt to guess a topic to search."
+  (if reset (setq cheat-sh--topic nil)
+    (or cheat-sh--topic
+        (setq cheat-sh--topic
+              (or (alist-get major-mode cheat-sh-topic-mode-map)
+                  (when-let ((s (symbol-name major-mode)))
+                    (and (string-match  "^\\([^-]+\\)" s)
+                         (match-string 1 s))))))))
 
 ;;;###autoload
 (defun cheat-sh (thing)
@@ -158,18 +187,20 @@ Commands:
       (error "Can't find anything for %s on cheat.sh" thing))))
 
 ;;;###autoload
-(defun cheat-sh-region (start end)
+(defun cheat-sh-region (start end &optional guess-again)
   "Look up the text between START and END on cheat.sh."
-  (interactive "r")
+  (interactive "r\nP")
   (deactivate-mark)
   (cheat-sh
-   (concat (cheat-sh-guess-topic) "/" (buffer-substring-no-properties start end))))
+   (concat (cheat-sh-guess-topic guess-again) "/"
+           (buffer-substring-no-properties start end))))
 
 ;;;###autoload
-(defun cheat-sh-maybe-region ()
+(defun cheat-sh-maybe-region (&optional guess-again)
   "If region is active lookup content of region, otherwise prompt."
-  (interactive)
-  (call-interactively (if mark-active #'cheat-sh-region #'cheat-sh)))
+  (interactive "P")
+  (setq prefix-arg guess-again)         ; force cheat-sh-region to reguess
+  (call-interactively (if (use-region-p) #'cheat-sh-region #'cheat-sh)))
 
 ;;;###autoload
 (defun cheat-sh-help ()
@@ -191,7 +222,7 @@ empty string."
 (defun cheat-sh-search (thing)
   "Search for THING on cheat.sh and display the result."
   (interactive "sSearch: ")
-  (cheat-sh (concat "~" thing)))
+  (cheat-sh (concat cheat-sh-query-separator thing)))
 
 ;;;###autoload
 (defun cheat-sh-search-topic (topic thing)
@@ -199,7 +230,7 @@ empty string."
   (interactive
    (list (cheat-sh-read "Topic: " (cheat-sh-guess-topic))
          (read-string "Search: ")))
-  (cheat-sh (concat topic "/~" thing)))
+  (cheat-sh (concat topic "/" thing)))
 
 (provide 'cheat-sh)
 
