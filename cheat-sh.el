@@ -105,7 +105,7 @@ text.")
       (unwind-protect
           (with-current-buffer buffer
             (set-buffer-multibyte t)
-            (setf (point) (point-min))
+            (goto-char (point-min))
             (when (search-forward-regexp "^$" nil t)
               (buffer-substring (1+ (point)) (point-max))))
         (kill-buffer buffer)))))
