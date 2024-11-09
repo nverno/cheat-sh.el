@@ -171,7 +171,7 @@ Commands:
     (or cheat-sh--topic
         (setq cheat-sh--topic
               (or (alist-get major-mode cheat-sh-topic-mode-map)
-                  (when-let ((s (symbol-name major-mode)))
+                  (when-let* ((s (symbol-name major-mode)))
                     (and (string-match  "^\\([^-]+\\)" s)
                          (match-string 1 s))))))))
 
